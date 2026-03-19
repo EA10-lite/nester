@@ -177,7 +177,7 @@ function FaqItem({
     >
       <div
         onClick={onToggle}
-        className={`group cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] rounded-2xl ${
+        className={`group cursor-pointer transition-all duration-300 ease-custom-out rounded-2xl ${
           isOpen
             ? "gradient-border-active gradient-border-lg shadow-sm"
             : ""

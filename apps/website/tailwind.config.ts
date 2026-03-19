@@ -108,6 +108,9 @@ export default {
         "marquee-up": "marquee-up 50s linear infinite",
         "marquee-down": "marquee-down 50s linear infinite",
       },
+      transitionTimingFunction: {
+        "custom-out": "cubic-bezier(0.25, 1, 0.5, 1)",
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],

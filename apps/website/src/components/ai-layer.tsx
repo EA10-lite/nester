@@ -285,7 +285,7 @@ export function AiLayer() {
                   viewport={{ once: true, margin: "-50px" }}
                   transition={{ duration: 0.6, delay: i * 0.1, ease: "easeOut" }}
                   onClick={() => handleSelect(cap.id)}
-                  className={`relative cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] rounded-2xl p-6 md:p-7 border bg-white/[0.02]
+                  className={`relative cursor-pointer transition-all duration-300 ease-custom-out rounded-2xl p-6 md:p-7 border bg-white/[0.02]
                     ${isActive
                       ? 'gradient-border-active gradient-border-sm shadow-sm bg-black/[0.04] translate-y-[-2px]'
                       : 'border-black/[0.07] hover:border-black/[0.18] hover:translate-y-[-4px] hover:shadow-[0_12px_32px_rgba(0,0,0,0.04)] hover:bg-white/[0.3]'
