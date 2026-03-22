@@ -2,6 +2,7 @@
 
 import { useWallet } from "@/components/wallet-provider";
 import { Navbar } from "@/components/navbar";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
@@ -136,9 +137,11 @@ export default function Dashboard() {
                                 optimized yield across DeFi protocols.
                             </p>
                             <div className="mt-5 p-[3px] rounded-full border border-black/15 shadow-lg bg-white inline-block">
-                                <button className="rounded-full bg-gradient-to-r from-[#0a0a0a] to-[#1a1a2e] border border-white/10 hover:from-[#1a1a2e] hover:to-[#0a0a0a] px-6 py-2 text-sm font-medium text-white transition-all">
-                                    Get Started
-                                </button>
+                                <Link href="/dashboard/vaults">
+                                    <button className="rounded-full bg-gradient-to-r from-[#0a0a0a] to-[#1a1a2e] border border-white/10 hover:from-[#1a1a2e] hover:to-[#0a0a0a] px-6 py-2 text-sm font-medium text-white transition-all">
+                                        Get Started
+                                    </button>
+                                </Link>
                             </div>
                         </div>
                     </motion.div>
