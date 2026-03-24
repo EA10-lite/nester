@@ -142,14 +142,14 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 
-// validateCurrencyCode verifies the currency code is a valid ISO 4217 format (3 uppercase letters)
+// validateCurrencyCode verifies the currency code is valid (ISO 4217 or crypto token format)
 func validateCurrencyCode(code string) error {
-	if len(code) != 3 {
-		return errors.New("currency code must be exactly 3 characters (ISO 4217)")
+	code = strings.TrimSpace(code)
+	if len(code) < 3 || len(code) > 4 {
+		return errors.New("currency code must be 3-4 characters (e.g., USD, USDC)")
 	}
-	code = strings.ToUpper(code)
-	if code != strings.ToUpper(strings.TrimSpace(code)) || !isAlpha(code) {
-		return errors.New("currency code must be 3 uppercase letters (e.g., USD, EUR, GBP)")
+	if !isAlpha(code) {
+		return errors.New("currency code must contain only letters")
 	}
 	return nil
 }
