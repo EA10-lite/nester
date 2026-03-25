@@ -1,32 +1,6 @@
-export type RiskTier = "Conservative" | "Balanced" | "Growth" | "DeFi500";
+import type { Vault, VaultAllocation, ApyDataPoint, RiskTier } from "@/lib/types/vault";
 
-export interface VaultAllocation {
-  protocol: string;
-  percentage: number;
-  apy: number;
-  color: string;
-}
-
-export interface ApyDataPoint {
-  date: string;
-  apy: number;
-}
-
-export interface Vault {
-  id: string;
-  name: string;
-  description: string;
-  riskTier: RiskTier;
-  currentApy: number;
-  apyRange: string;
-  tvl: number;
-  userCount: number;
-  allocations: VaultAllocation[];
-  supportedAssets: string[];
-  maturityTerms: string;
-  earlyWithdrawalPenalty: string;
-  apyHistory: ApyDataPoint[];
-}
+export type { Vault, VaultAllocation, ApyDataPoint, RiskTier };
 
 function generateApyHistory(
   baseApy: number,
@@ -35,7 +9,6 @@ function generateApyHistory(
   const today = new Date();
   const points: ApyDataPoint[] = [];
   let current = baseApy;
-  // Use a deterministic-ish seed by alternating sign based on index
   for (let i = 89; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
@@ -114,12 +87,7 @@ export const VAULTS: Vault[] = [
     userCount: 987,
     allocations: [
       { protocol: "Kamino LP", percentage: 50, apy: 14.8, color: "#f97316" },
-      {
-        protocol: "Blend Leveraged",
-        percentage: 30,
-        apy: 12.1,
-        color: "#2EBAC6",
-      },
+      { protocol: "Blend Leveraged", percentage: 30, apy: 12.1, color: "#2EBAC6" },
       { protocol: "Volatile LP", percentage: 20, apy: 11.5, color: "#B6509E" },
     ],
     supportedAssets: ["USDC", "USDT"],
@@ -138,12 +106,7 @@ export const VAULTS: Vault[] = [
     tvl: 8_900_000,
     userCount: 4_512,
     allocations: [
-      {
-        protocol: "Multi-Protocol Index",
-        percentage: 60,
-        apy: 12.2,
-        color: "#6366f1",
-      },
+      { protocol: "Multi-Protocol Index", percentage: 60, apy: 12.2, color: "#6366f1" },
       { protocol: "Rebalancer", percentage: 25, apy: 10.8, color: "#2EBAC6" },
       { protocol: "Stable Buffer", percentage: 15, apy: 7.4, color: "#B6509E" },
     ],
