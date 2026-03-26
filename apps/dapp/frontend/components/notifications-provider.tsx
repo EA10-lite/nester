@@ -47,6 +47,8 @@ const NotificationsContext = createContext<NotificationsState>({
     dismissToast: () => {},
 });
 
+const NOTIFICATIONS_STORAGE_KEY = "nester.notifications.v1";
+
 function buildId(prefix: string) {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
         return `${prefix}-${crypto.randomUUID()}`;
@@ -55,10 +57,61 @@ function buildId(prefix: string) {
 }
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
+    // v1: Notifications are client-side only and reset on page reload.
     const [notifications, setNotifications] =
         useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
     const [toasts, setToasts] = useState<ToastItem[]>([]);
     const timerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const raw = window.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+        if (!raw) {
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(raw) as AppNotification[];
+            if (!Array.isArray(parsed)) {
+                return;
+            }
+
+            const valid = parsed.filter((item) => {
+                if (!item || typeof item !== "object") {
+                    return false;
+                }
+
+                return (
+                    typeof item.id === "string" &&
+                    typeof item.type === "string" &&
+                    typeof item.title === "string" &&
+                    typeof item.message === "string" &&
+                    typeof item.timestamp === "string" &&
+                    typeof item.read === "boolean"
+                );
+            });
+
+            if (valid.length > 0) {
+                setNotifications(valid);
+            }
+        } catch {
+            window.localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        window.localStorage.setItem(
+            NOTIFICATIONS_STORAGE_KEY,
+            JSON.stringify(notifications)
+        );
+    }, [notifications]);
 
     const dismissToast = useCallback((id: string) => {
         setToasts((prev) => prev.filter((toast) => toast.id !== id));
