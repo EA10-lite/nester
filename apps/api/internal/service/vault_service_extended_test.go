@@ -552,3 +552,101 @@ func TestVaultServiceRecordDepositUpdatesBalances(t *testing.T) {
 		t.Fatalf("CurrentBalance = %s, want 150.75", updated.CurrentBalance)
 	}
 }
+
+func TestListVaults_SortedByAPYDescending(t *testing.T) {
+	userID := uuid.New()
+	repository := newMemoryVaultRepository(userID)
+	service := NewVaultService(repository)
+
+	// Create vaults with different APYs
+	vault1, err := service.CreateVault(context.Background(), CreateVaultInput{
+		UserID:          userID,
+		ContractAddress: "CA-APY-001",
+		Currency:        "USDC",
+	})
+	if err != nil {
+		t.Fatalf("CreateVault() error = %v", err)
+	}
+
+	vault2, err := service.CreateVault(context.Background(), CreateVaultInput{
+		UserID:          userID,
+		ContractAddress: "CA-APY-002",
+		Currency:        "USDC",
+	})
+	if err != nil {
+		t.Fatalf("CreateVault() error = %v", err)
+	}
+
+	vault3, err := service.CreateVault(context.Background(), CreateVaultInput{
+		UserID:          userID,
+		ContractAddress: "CA-APY-003",
+		Currency:        "USDC",
+	})
+	if err != nil {
+		t.Fatalf("CreateVault() error = %v", err)
+	}
+
+	// Add allocations with different APYs
+	_, err = service.UpdateAllocations(context.Background(), UpdateAllocationsInput{
+		VaultID: vault1.ID,
+		Allocations: []vault.Allocation{
+			{Protocol: "aave", Amount: decimal.RequireFromString("100"), APY: decimal.RequireFromString("3.5")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateAllocations() error = %v", err)
+	}
+
+	_, err = service.UpdateAllocations(context.Background(), UpdateAllocationsInput{
+		VaultID: vault2.ID,
+		Allocations: []vault.Allocation{
+			{Protocol: "blend", Amount: decimal.RequireFromString("100"), APY: decimal.RequireFromString("5.2")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateAllocations() error = %v", err)
+	}
+
+	_, err = service.UpdateAllocations(context.Background(), UpdateAllocationsInput{
+		VaultID: vault3.ID,
+		Allocations: []vault.Allocation{
+			{Protocol: "compound", Amount: decimal.RequireFromString("100"), APY: decimal.RequireFromString("4.1")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateAllocations() error = %v", err)
+	}
+
+	// Get user vaults
+	vaults, err := service.GetUserVaults(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("GetUserVaults() error = %v", err)
+	}
+
+	if len(vaults) != 3 {
+		t.Fatalf("GetUserVaults() returned %d vaults, want 3", len(vaults))
+	}
+
+	// Verify vaults are sorted by APY descending
+	// vault2 has APY 5.2, vault3 has APY 4.1, vault1 has APY 3.5
+	if vaults[0].ID != vault2.ID {
+		t.Fatalf("first vault should be vault2 (APY 5.2), got %v", vaults[0].ID)
+	}
+	if vaults[1].ID != vault3.ID {
+		t.Fatalf("second vault should be vault3 (APY 4.1), got %v", vaults[1].ID)
+	}
+	if vaults[2].ID != vault1.ID {
+		t.Fatalf("third vault should be vault1 (APY 3.5), got %v", vaults[2].ID)
+	}
+
+	// Verify APY values are correct
+	if len(vaults[0].Allocations) == 0 || !vaults[0].Allocations[0].APY.Equal(decimal.RequireFromString("5.2")) {
+		t.Fatalf("first vault APY = %v, want 5.2", vaults[0].Allocations[0].APY)
+	}
+	if len(vaults[1].Allocations) == 0 || !vaults[1].Allocations[0].APY.Equal(decimal.RequireFromString("4.1")) {
+		t.Fatalf("second vault APY = %v, want 4.1", vaults[1].Allocations[0].APY)
+	}
+	if len(vaults[2].Allocations) == 0 || !vaults[2].Allocations[0].APY.Equal(decimal.RequireFromString("3.5")) {
+		t.Fatalf("third vault APY = %v, want 3.5", vaults[2].Allocations[0].APY)
+	}
+}

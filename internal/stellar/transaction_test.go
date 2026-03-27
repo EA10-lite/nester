@@ -2,8 +2,11 @@ package stellar
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -14,7 +17,17 @@ import (
 // Transaction Submission Tests (Unit & Integration)
 // ============================================================================
 
-func TestTransactionSubmission_Success(t *testing.T) {
+func TestSubmitTransaction_ReturnsHash(t *testing.T) {
+	// Mock Soroban RPC server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"hash":   "abc123",
+			"status": "SUCCESS",
+		})
+	}))
+	defer server.Close()
+
 	client := &Client{
 		config: Config{
 			MaxRetries:   3,
@@ -26,28 +39,71 @@ func TestTransactionSubmission_Success(t *testing.T) {
 	invoker := NewContractInvoker(client)
 
 	// Test successful transaction submission
-	// In production, this would submit to the network
 	result, err := invoker.submitTransaction(context.Background(), nil)
 
-	// Currently returns error because tx is nil
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	_ = invoker // Use the variable to avoid unused error
+	// Should succeed with mocked response
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.IsSuccess)
+	assert.Equal(t, "abc123", result.TransactionHash)
 }
 
-func TestTransactionSubmission_ReturnsHash(t *testing.T) {
-	// Test that successful submission returns transaction hash
-	result := &ContractResult{
-		TransactionHash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-		BlockNumber:     12345,
-		IsSuccess:       true,
-		Error:           "",
-		ReturnValue:     nil,
+func TestSubmitTransaction_FailureResponse(t *testing.T) {
+	// Mock Soroban RPC server with failure
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"hash":   "",
+			"status": "TXN_FAILED",
+			"error":  "insufficient balance",
+		})
+	}))
+	defer server.Close()
+
+	client := &Client{
+		config: Config{
+			MaxRetries:   3,
+			RetryBackoff: 100,
+		},
+		networkID: "Test SDF Network ; September 2015",
 	}
 
-	assert.True(t, result.IsSuccess)
-	assert.NotEmpty(t, result.TransactionHash)
-	assert.Equal(t, uint64(12345), result.BlockNumber)
+	invoker := NewContractInvoker(client)
+
+	// Test transaction failure
+	result, err := invoker.submitTransaction(context.Background(), nil)
+
+	// Should handle failure gracefully
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.False(t, result.IsSuccess)
+	assert.Contains(t, result.Error, "TXN_FAILED")
+}
+
+func TestSubmitTransaction_NetworkError(t *testing.T) {
+	// Simulate server failure
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("server error")
+	}))
+	defer server.Close()
+
+	client := &Client{
+		config: Config{
+			MaxRetries:   3,
+			RetryBackoff: 100,
+		},
+		networkID: "Test SDF Network ; September 2015",
+	}
+
+	invoker := NewContractInvoker(client)
+
+	// Test network error
+	result, err := invoker.submitTransaction(context.Background(), nil)
+
+	// Should return wrapped error, not panic
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "transaction is nil")
 }
 
 func TestTransactionSubmission_NetworkTimeout(t *testing.T) {

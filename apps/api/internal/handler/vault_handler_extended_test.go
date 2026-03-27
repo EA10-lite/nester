@@ -496,3 +496,107 @@ func TestVaultHandlerCreateVaultTrimsWhitespace(t *testing.T) {
 		t.Fatalf("created vault Currency = %q, want %q", created.Currency, "USDC")
 	}
 }
+
+func TestVaultHandler_GetAllocations_Returns200(t *testing.T) {
+	userID := uuid.New()
+	repository := newHandlerRepository(userID)
+	vaultService := service.NewVaultService(repository)
+	handler := NewVaultHandler(vaultService)
+	mux := http.NewServeMux()
+	handler.Register(mux)
+
+	server := httptest.NewServer(middleware.Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(mux))
+	defer server.Close()
+
+	// Create vault
+	body := bytes.NewBufferString(`{"user_id":"` + userID.String() + `","contract_address":"CA-ALLOC-GET-001","currency":"USDC"}`)
+	response, err := http.Post(server.URL+"/api/v1/vaults", "application/json", body)
+	if err != nil {
+		t.Fatalf("POST /api/v1/vaults error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", response.StatusCode)
+	}
+
+	var created vault.Vault
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	// Add allocations
+	_, err = vaultService.UpdateAllocations(context.Background(), service.UpdateAllocationsInput{
+		VaultID: created.ID,
+		Allocations: []vault.Allocation{
+			{Protocol: "aave", Amount: decimal.RequireFromString("60"), APY: decimal.RequireFromString("4.5")},
+			{Protocol: "blend", Amount: decimal.RequireFromString("40"), APY: decimal.RequireFromString("5.2")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateAllocations() error = %v", err)
+	}
+
+	// Get allocations
+	getResponse, err := http.Get(server.URL + "/api/v1/vaults/" + created.ID.String() + "/allocations")
+	if err != nil {
+		t.Fatalf("GET /api/v1/vaults/{id}/allocations error = %v", err)
+	}
+	defer getResponse.Body.Close()
+
+	if getResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", getResponse.StatusCode)
+	}
+
+	var allocations []vault.Allocation
+	if err := json.NewDecoder(getResponse.Body).Decode(&allocations); err != nil {
+		t.Fatalf("decode allocations response: %v", err)
+	}
+
+	if len(allocations) != 2 {
+		t.Fatalf("got %d allocations, want 2", len(allocations))
+	}
+
+	// Verify allocation breakdown
+	protocols := make(map[string]bool)
+	for _, alloc := range allocations {
+		protocols[alloc.Protocol] = true
+	}
+	if !protocols["aave"] {
+		t.Fatal("allocation 'aave' should be present")
+	}
+	if !protocols["blend"] {
+		t.Fatal("allocation 'blend' should be present")
+	}
+}
+
+func TestVaultHandler_GetAllocations_NotFound(t *testing.T) {
+	repository := newHandlerRepository(uuid.New())
+	vaultService := service.NewVaultService(repository)
+	handler := NewVaultHandler(vaultService)
+	mux := http.NewServeMux()
+	handler.Register(mux)
+
+	server := httptest.NewServer(middleware.Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(mux))
+	defer server.Close()
+
+	// Get allocations for non-existent vault
+	response, err := http.Get(server.URL + "/api/v1/vaults/" + uuid.New().String() + "/allocations")
+	if err != nil {
+		t.Fatalf("GET /api/v1/vaults/{id}/allocations error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", response.StatusCode)
+	}
+
+	var errorResp errorResponse
+	if err := json.NewDecoder(response.Body).Decode(&errorResp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+
+	if errorResp.Error == "" {
+		t.Fatal("error response should have error message")
+	}
+}
