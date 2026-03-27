@@ -42,6 +42,8 @@ pub struct NesterHarness {
     pub registry_id: Address,
     /// On-chain ID of the deployed AllocationStrategy contract.
     pub strategy_id: Address,
+    /// On-chain ID of the deposit token (e.g. USDC) used by the Vault.
+    pub deposit_token_id: Address,
 }
 
 impl NesterHarness {
@@ -58,6 +60,7 @@ impl NesterHarness {
         env.mock_all_auths();
 
         let admin = Address::generate(&env);
+        let token_admin = Address::generate(&env);
 
         // Register contracts (allocates an on-chain address for each).
         let vault_id    = env.register_contract(None, VaultContract);
@@ -65,8 +68,11 @@ impl NesterHarness {
         let registry_id = env.register_contract(None, YieldRegistryContract);
         let strategy_id = env.register_contract(None, AllocationStrategyContract);
 
+        // Register a Stellar asset contract to act as the deposit token (e.g. USDC).
+        let deposit_token_id = env.register_stellar_asset_contract_v2(token_admin).address();
+
         // Initialise in dependency order.
-        VaultContractClient::new(&env, &vault_id).initialize(&admin);
+        VaultContractClient::new(&env, &vault_id).initialize(&admin, &deposit_token_id);
 
         VaultTokenContractClient::new(&env, &token_id).initialize(
             &vault_id,
@@ -89,6 +95,7 @@ impl NesterHarness {
             token_id,
             registry_id,
             strategy_id,
+            deposit_token_id,
         }
     }
 
