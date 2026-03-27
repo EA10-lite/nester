@@ -1,6 +1,9 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, panic_with_error, symbol_short, token, Address, Env,
+    Symbol,
+};
 
 use nester_access_control::{AccessControl, Role};
 use nester_common::{emit_event, ContractError};
@@ -40,9 +43,66 @@ pub struct TimestampEventData {
 // ---------------------------------------------------------------------------
 
 #[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VaultStatus {
+    Active,
+    Paused,
+}
+
+#[contracttype]
 #[derive(Clone)]
 enum DataKey {
-    Paused,
+    Token,
+    Status,
+    Balance(Address),
+    TotalDeposits,
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn require_initialized(env: &Env) {
+    if !env.storage().instance().has(&DataKey::Token) {
+        panic_with_error!(env, ContractError::NotInitialized);
+    }
+}
+
+fn require_active(env: &Env) {
+    let status: VaultStatus = env
+        .storage()
+        .instance()
+        .get(&DataKey::Status)
+        .unwrap_or(VaultStatus::Paused);
+    if status != VaultStatus::Active {
+        panic_with_error!(env, ContractError::InvalidOperation);
+    }
+}
+
+fn get_balance(env: &Env, user: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Balance(user.clone()))
+        .unwrap_or(0)
+}
+
+fn set_balance(env: &Env, user: &Address, amount: i128) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Balance(user.clone()), &amount);
+}
+
+fn get_total(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&DataKey::TotalDeposits)
+        .unwrap_or(0)
+}
+
+fn set_total(env: &Env, amount: i128) {
+    env.storage()
+        .instance()
+        .set(&DataKey::TotalDeposits, &amount);
 }
 
 // ---------------------------------------------------------------------------
@@ -55,11 +115,18 @@ pub struct VaultContract;
 #[contractimpl]
 impl VaultContract {
     /// Initialise the vault, setting `admin` as the sole Admin.
-    ///
-    /// Must be called once before any other function.
-    pub fn initialize(env: Env, admin: Address) {
+    pub fn initialize(env: Env, admin: Address, token_address: Address) {
+        // AccessControl::initialize handles AlreadyInitialized guard and require_auth
         AccessControl::initialize(&env, &admin);
-        env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage()
+            .instance()
+            .set(&DataKey::Token, &token_address);
+        env.storage()
+            .instance()
+            .set(&DataKey::Status, &VaultStatus::Active);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalDeposits, &0_i128);
     }
 
     // -----------------------------------------------------------------------
@@ -68,9 +135,12 @@ impl VaultContract {
 
     /// Pause all vault operations. Requires [`Role::Admin`].
     pub fn pause(env: Env, caller: Address) {
+        require_initialized(&env);
         caller.require_auth();
         AccessControl::require_role(&env, &caller, Role::Admin);
-        env.storage().instance().set(&DataKey::Paused, &true);
+        env.storage()
+            .instance()
+            .set(&DataKey::Status, &VaultStatus::Paused);
         emit_event(
             &env,
             VAULT,
@@ -84,9 +154,12 @@ impl VaultContract {
 
     /// Resume vault operations. Requires [`Role::Admin`].
     pub fn unpause(env: Env, caller: Address) {
+        require_initialized(&env);
         caller.require_auth();
         AccessControl::require_role(&env, &caller, Role::Admin);
-        env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage()
+            .instance()
+            .set(&DataKey::Status, &VaultStatus::Active);
         emit_event(
             &env,
             VAULT,
@@ -123,71 +196,130 @@ impl VaultContract {
     // -----------------------------------------------------------------------
 
     /// Deposit funds into the vault.
-    pub fn deposit(env: Env, caller: Address, amount: i128) {
-        caller.require_auth();
-        Self::require_not_paused(&env);
-        // TODO: deposit logic
-        // For now, emit event with dummy values to satisfy schema
+    pub fn deposit(env: Env, user: Address, amount: i128) -> i128 {
+        require_initialized(&env);
+        require_active(&env);
+
+        if amount <= 0 {
+            panic_with_error!(&env, ContractError::InvalidAmount);
+        }
+
+        user.require_auth();
+
+        let token_address: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Token)
+            .unwrap_or_else(|| panic_with_error!(&env, ContractError::NotInitialized));
+        let contract_address = env.current_contract_address();
+
+        token::Client::new(&env, &token_address).transfer(&user, &contract_address, &amount);
+
+        let new_balance = get_balance(&env, &user) + amount;
+        set_balance(&env, &user, new_balance);
+
+        let new_total = get_total(&env) + amount;
+        set_total(&env, new_total);
+
         emit_event(
             &env,
             VAULT,
             DEPOSIT,
-            caller,
+            user.clone(),
             DepositEventData {
                 amount,
-                shares_minted: amount, // dummy
-                new_balance: amount,   // dummy
-                total_deposits: amount, // dummy
+                shares_minted: amount,
+                new_balance,
+                total_deposits: new_total,
             },
         );
+
+        new_balance
     }
 
     /// Withdraw funds from the vault.
-    pub fn withdraw(env: Env, caller: Address, amount: i128) {
-        caller.require_auth();
-        Self::require_not_paused(&env);
-        // TODO: withdrawal logic
-        // For now, emit event with dummy values to satisfy schema
+    /// Note: withdrawals are allowed even when the vault is paused so users can always exit.
+    pub fn withdraw(env: Env, user: Address, amount: i128) -> i128 {
+        require_initialized(&env);
+
+        if amount <= 0 {
+            panic_with_error!(&env, ContractError::InvalidAmount);
+        }
+
+        user.require_auth();
+
+        let current_balance = get_balance(&env, &user);
+        if amount > current_balance {
+            panic_with_error!(&env, ContractError::InsufficientBalance);
+        }
+
+        let token_address: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Token)
+            .unwrap_or_else(|| panic_with_error!(&env, ContractError::NotInitialized));
+        let contract_address = env.current_contract_address();
+
+        token::Client::new(&env, &token_address).transfer(&contract_address, &user, &amount);
+
+        let new_balance = current_balance - amount;
+        set_balance(&env, &user, new_balance);
+
+        let new_total = get_total(&env) - amount;
+        set_total(&env, new_total);
+
         emit_event(
             &env,
             VAULT,
             WITHDRAW,
-            caller,
+            user.clone(),
             WithdrawEventData {
                 amount,
-                shares_burned: amount, // dummy
-                new_balance: 0,        // dummy
-                total_deposits: 0,     // dummy
+                shares_burned: amount,
+                new_balance,
+                total_deposits: new_total,
             },
         );
-    }
 
-    /// Return the vault balance.
-    pub fn balance(_env: Env) -> u64 {
-        // TODO: balance logic
-        0
+        new_balance
     }
 
     // -----------------------------------------------------------------------
-    // Helpers
+    // View functions
     // -----------------------------------------------------------------------
+
+    pub fn get_balance(env: Env, user: Address) -> i128 {
+        require_initialized(&env);
+        get_balance(&env, &user)
+    }
+
+    pub fn get_total_deposits(env: Env) -> i128 {
+        require_initialized(&env);
+        get_total(&env)
+    }
+
+    pub fn get_status(env: Env) -> VaultStatus {
+        require_initialized(&env);
+        env.storage()
+            .instance()
+            .get(&DataKey::Status)
+            .unwrap_or(VaultStatus::Paused)
+    }
+
+    pub fn get_token(env: Env) -> Address {
+        require_initialized(&env);
+        env.storage()
+            .instance()
+            .get(&DataKey::Token)
+            .unwrap_or_else(|| panic_with_error!(&env, ContractError::NotInitialized))
+    }
 
     pub fn is_paused(env: Env) -> bool {
         env.storage()
             .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false)
-    }
-
-    fn require_not_paused(env: &Env) {
-        let paused: bool = env
-            .storage()
-            .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false);
-        if paused {
-            soroban_sdk::panic_with_error!(env, ContractError::InvalidOperation);
-        }
+            .get::<_, VaultStatus>(&DataKey::Status)
+            .map(|s| s == VaultStatus::Paused)
+            .unwrap_or(true)
     }
 }
 
@@ -196,71 +328,4 @@ impl VaultContract {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
-    extern crate std;
-
-    use soroban_sdk::{testutils::Address as _, Env};
-
-    use super::{VaultContract, VaultContractClient};
-
-    fn setup() -> (Env, soroban_sdk::Address) {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = soroban_sdk::Address::generate(&env);
-        let contract_id = env.register_contract(None, VaultContract);
-        let client = VaultContractClient::new(&env, &contract_id);
-        client.initialize(&admin);
-        (env, admin)
-    }
-
-    #[test]
-    fn vault_initializes_and_is_not_paused() {
-        let (env, admin) = setup();
-        let contract_id = env.register_contract(None, VaultContract);
-        let client = VaultContractClient::new(&env, &contract_id);
-        client.initialize(&admin);
-        assert!(!client.is_paused());
-    }
-
-    #[test]
-    fn admin_can_pause_and_unpause() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = soroban_sdk::Address::generate(&env);
-        let contract_id = env.register_contract(None, VaultContract);
-        let client = VaultContractClient::new(&env, &contract_id);
-        client.initialize(&admin);
-
-        client.pause(&admin);
-        assert!(client.is_paused());
-
-        client.unpause(&admin);
-        assert!(!client.is_paused());
-    }
-
-    #[test]
-    #[should_panic]
-    fn non_admin_cannot_pause() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = soroban_sdk::Address::generate(&env);
-        let outsider = soroban_sdk::Address::generate(&env);
-        let contract_id = env.register_contract(None, VaultContract);
-        let client = VaultContractClient::new(&env, &contract_id);
-        client.initialize(&admin);
-        client.pause(&outsider);
-    }
-
-    #[test]
-    #[should_panic]
-    fn deposit_fails_when_paused() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = soroban_sdk::Address::generate(&env);
-        let contract_id = env.register_contract(None, VaultContract);
-        let client = VaultContractClient::new(&env, &contract_id);
-        client.initialize(&admin);
-        client.pause(&admin);
-        client.deposit(&admin, &1000); // must panic
-    }
-}
+mod test;

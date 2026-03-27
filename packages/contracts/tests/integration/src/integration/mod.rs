@@ -276,7 +276,8 @@ fn vault_accepts_deposit_after_unpause() {
     h.vault().unpause(&h.admin);
     assert!(!h.vault().is_paused());
 
-    // deposit() stub no-ops when not paused — it must not panic here.
+    // Mint deposit tokens so the real transfer inside deposit() succeeds.
+    h.mint_deposit_tokens(&user, 1_000);
     h.vault().deposit(&user, &100);
 }
 
@@ -292,8 +293,10 @@ fn non_admin_cannot_pause_vault() {
 
         // Bootstrap the vault (needs mock_all_auths for initialize).
         env2.mock_all_auths();
+        let token_admin2 = soroban_sdk::Address::generate(&env2);
+        let deposit_token2 = env2.register_stellar_asset_contract_v2(token_admin2).address();
         let vault_id2 = env2.register_contract(None, vault_contract::VaultContract);
-        vault_contract::VaultContractClient::new(&env2, &vault_id2).initialize(&admin2);
+        vault_contract::VaultContractClient::new(&env2, &vault_id2).initialize(&admin2, &deposit_token2);
 
         // Strip all mocked auths so the role guard runs normally.
         env2.set_auths(&[]);
