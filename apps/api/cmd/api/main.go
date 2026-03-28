@@ -47,6 +47,7 @@ func run() error {
 	defer pgPool.Pool.Close()
 
 	db := stdlib.OpenDBFromPool(pgPool.Pool)
+	defer db.Close()
 
 	vaultRepository := postgres.NewVaultRepository(db)
 	vaultService := service.NewVaultService(vaultRepository)
