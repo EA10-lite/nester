@@ -61,6 +61,9 @@ func run() error {
 	userService := service.NewUserService(userRepository)
 	userHandler := handler.NewUserHandler(userService)
 
+	authService := service.NewAuthService(userService, cfg.Auth())
+	authHandler := handler.NewAuthHandler(authService)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler(pgPool, cfg.Database().ConnectionTimeout()))
 	mux.HandleFunc("GET /healthz", healthHandler(pgPool, cfg.Database().ConnectionTimeout()))
@@ -68,10 +71,21 @@ func run() error {
 	vaultHandler.Register(mux)
 	settlementHandler.Register(mux)
 	userHandler.Register(mux)
+	authHandler.Register(mux)
+
+	authRules := []middleware.RouteRule{
+		{PathPrefix: "/health", Public: true},
+		{PathPrefix: "/healthz", Public: true},
+		{PathPrefix: "/readyz", Public: true},
+		{PathPrefix: "/api/v1/auth/", Public: true},
+		{PathPrefix: "/api/v1/", Public: false},
+	}
+	authenticator := middleware.Authenticate(cfg.Auth().Secret(), authRules)
+	limiter := middleware.IPRateLimiter(cfg.RateLimit().GlobalLimit(), cfg.RateLimit().GlobalWindow())
 
 	server := &http.Server{
 		Addr:         cfg.Server().Address(),
-		Handler:      middleware.LimitRequestBody(1 * 1024 * 1024)(middleware.Logging(baseLogger)(mux)),
+		Handler:      limiter(authenticator(middleware.LimitRequestBody(1 * 1024 * 1024)(middleware.Logging(baseLogger)(mux)))),
 		ReadTimeout:  cfg.Server().ReadTimeout(),
 		WriteTimeout: cfg.Server().WriteTimeout(),
 	}
