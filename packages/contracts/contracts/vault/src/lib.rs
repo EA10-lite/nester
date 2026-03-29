@@ -184,7 +184,7 @@ fn get_vault_token(env: &Env) -> Address {
         .unwrap_or_else(|| panic_with_error!(env, ContractError::NotInitialized))
 }
 
-fn vault_token_client(env: &Env) -> VaultTokenContractClient {
+fn vault_token_client(env: &Env) -> VaultTokenContractClient<'_> {
     let vault_token = get_vault_token(env);
     VaultTokenContractClient::new(env, &vault_token)
 }

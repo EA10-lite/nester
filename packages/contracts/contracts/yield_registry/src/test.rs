@@ -3,8 +3,8 @@
 extern crate std;
 
 use soroban_sdk::{
-    testutils::{Address as _, Events, Ledger},
-    Address, Env, LedgerInfo, Symbol,
+    testutils::{Address as _, Events, Ledger, LedgerInfo},
+    Address, Env, Symbol,
 };
 
 use crate::{ProtocolType, SourceStatus, YieldRegistryContract, YieldRegistryContractClient};
@@ -14,7 +14,7 @@ use nester_access_control::Role;
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn setup(env: &Env) -> (YieldRegistryContractClient, Address) {
+fn setup(env: &Env) -> (YieldRegistryContractClient<'_>, Address) {
     env.mock_all_auths();
     let admin = Address::generate(env);
     let contract_id = env.register_contract(None, YieldRegistryContract);
