@@ -3,12 +3,12 @@
 extern crate std;
 
 use super::*;
+use nester_common::{ProtocolType as RegistryProtocolType, SourceStatus as RegistrySourceStatus};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events},
     vec, Address, Env,
 };
-use nester_common::{ProtocolType as RegistryProtocolType, SourceStatus as RegistrySourceStatus};
 use yield_registry::{YieldRegistryContract, YieldRegistryContractClient};
 
 // Helper: register a source with the registry using the new API.
@@ -18,7 +18,12 @@ fn reg(
     admin: &Address,
     id: soroban_sdk::Symbol,
 ) {
-    registry.register_source(admin, &id, &Address::generate(env), &RegistryProtocolType::Lending);
+    registry.register_source(
+        admin,
+        &id,
+        &Address::generate(env),
+        &RegistryProtocolType::Lending,
+    );
 }
 
 #[test]
@@ -235,7 +240,11 @@ fn rejects_inactive_sources() {
     registry.initialize(&admin);
     reg(&registry, &env, &admin, symbol_short!("aave"));
     // Pause the source
-    registry.update_status(&admin, &symbol_short!("aave"), &RegistrySourceStatus::Paused);
+    registry.update_status(
+        &admin,
+        &symbol_short!("aave"),
+        &RegistrySourceStatus::Paused,
+    );
 
     let client = AllocationStrategyContractClient::new(&env, &strategy_id);
     client.initialize(&admin, &registry_id);

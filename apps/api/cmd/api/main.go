@@ -103,7 +103,7 @@ func run() error {
 			globalLimiter(
 				writeLimiter(
 					authenticator(
-						middleware.LimitRequestBody(1*1024*1024)(
+						middleware.LimitRequestBody(1 * 1024 * 1024)(
 							middleware.Logging(baseLogger)(mux),
 						),
 					),

@@ -137,7 +137,7 @@ enum DataKey {
     Token,
     VaultToken,
     Status,
-    TotalAssets,      // Stores total assets (tokens) in vault (pre-fee)
+    TotalAssets, // Stores total assets (tokens) in vault (pre-fee)
     FeeConfig,
     LastFeeAccrual,
     AccruedFees,

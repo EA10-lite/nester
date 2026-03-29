@@ -26,7 +26,7 @@ use soroban_sdk::{
 };
 
 use nester_access_control::{AccessControl, Role};
-use nester_common::{emit_event_with_sym, ContractError, SourceStatus, ProtocolType};
+use nester_common::{emit_event_with_sym, ContractError, ProtocolType, SourceStatus};
 
 const REGISTRY: Symbol = symbol_short!("REGISTRY");
 const SOURCE_ADDED: Symbol = symbol_short!("SRC_ADD");
@@ -59,7 +59,6 @@ pub struct SourceAPYUpdatedEventData {
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
-
 
 /// Full record stored for each registered yield source.
 #[contracttype]
@@ -323,8 +322,8 @@ impl YieldRegistryContract {
                 .instance()
                 .get::<DataKey, YieldSource>(&DataKey::Source(sym))
             {
-                let stale = s.apy_updated_at == 0
-                    || now > s.apy_updated_at.saturating_add(max_age_secs);
+                let stale =
+                    s.apy_updated_at == 0 || now > s.apy_updated_at.saturating_add(max_age_secs);
                 if stale {
                     out.push_back(s);
                 }

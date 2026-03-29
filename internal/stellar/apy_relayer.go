@@ -47,8 +47,8 @@ type APYRelayer struct {
 	onError            func(error)
 	now                func() time.Time
 
-	mu          sync.Mutex
-	lastUpdated map[string]time.Time
+	mu           sync.Mutex
+	lastUpdated  map[string]time.Time
 	staleAlerted map[string]bool
 }
 
@@ -77,15 +77,15 @@ func NewAPYRelayer(
 	}
 
 	return &APYRelayer{
-		updater:             updater,
-		registryID:          registryID,
-		sources:             sources,
-		interval:            interval,
-		stalenessThreshold:  stalenessThreshold,
-		onStale:             onStale,
-		now:                 time.Now,
-		lastUpdated:         make(map[string]time.Time),
-		staleAlerted:        make(map[string]bool),
+		updater:            updater,
+		registryID:         registryID,
+		sources:            sources,
+		interval:           interval,
+		stalenessThreshold: stalenessThreshold,
+		onStale:            onStale,
+		now:                time.Now,
+		lastUpdated:        make(map[string]time.Time),
+		staleAlerted:       make(map[string]bool),
 	}, nil
 }
 

@@ -14,14 +14,14 @@ import (
 )
 
 type Config struct {
-	environment string
-	server      ServerConfig
-	database    DatabaseConfig
-	stellar     StellarConfig
+	environment           string
+	server                ServerConfig
+	database              DatabaseConfig
+	stellar               StellarConfig
 	settlementProviderURL string
-	auth        AuthConfig
-	rateLimit   RateLimitConfig
-	log         LogConfig
+	auth                  AuthConfig
+	rateLimit             RateLimitConfig
+	log                   LogConfig
 }
 
 type ServerConfig struct {

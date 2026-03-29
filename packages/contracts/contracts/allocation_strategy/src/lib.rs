@@ -5,10 +5,10 @@ use soroban_sdk::{
 };
 
 use nester_access_control::{AccessControl, Role};
-use nester_common::{emit_event, ContractError, BASIS_POINT_SCALE, SourceStatus};
+use nester_common::{emit_event, ContractError, SourceStatus, BASIS_POINT_SCALE};
 
 mod yield_registry_import {
-    use nester_common::{SourceStatus, ProtocolType};
+    use nester_common::{ProtocolType, SourceStatus};
     soroban_sdk::contractimport!(
         file = "../../target/wasm32-unknown-unknown/release/yield_registry.wasm"
     );

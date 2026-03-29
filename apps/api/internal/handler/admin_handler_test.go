@@ -104,12 +104,12 @@ func newAdminHandlerStubService(vaultID uuid.UUID) *adminHandlerStubService {
 			},
 		},
 		health: admindomain.DetailedHealth{
-			Database: admindomain.HealthStatus{Status: "healthy", LastCheckedAt: now},
-			StellarRPC: admindomain.HealthStatus{Status: "healthy", LastCheckedAt: now},
+			Database:           admindomain.HealthStatus{Status: "healthy", LastCheckedAt: now},
+			StellarRPC:         admindomain.HealthStatus{Status: "healthy", LastCheckedAt: now},
 			SettlementProvider: admindomain.HealthStatus{Status: "healthy", LastCheckedAt: now},
-			EventIndexer: admindomain.HealthStatus{Status: "healthy", LastCheckedAt: now, LastEventAt: &now},
-			DiskUsage: "40.0%",
-			Uptime:    "5m0s",
+			EventIndexer:       admindomain.HealthStatus{Status: "healthy", LastCheckedAt: now, LastEventAt: &now},
+			DiskUsage:          "40.0%",
+			Uptime:             "5m0s",
 		},
 	}
 }
@@ -189,9 +189,9 @@ func TestAdminHandlerListPauseVerifyFlow(t *testing.T) {
 	}
 
 	var envelope struct {
-		Success bool              `json:"success"`
-		Data    json.RawMessage   `json:"data"`
-		Meta    *response.Meta    `json:"meta"`
+		Success bool            `json:"success"`
+		Data    json.RawMessage `json:"data"`
+		Meta    *response.Meta  `json:"meta"`
 	}
 	if err := json.NewDecoder(listResp.Body).Decode(&envelope); err != nil {
 		t.Fatalf("decode list response: %v", err)
